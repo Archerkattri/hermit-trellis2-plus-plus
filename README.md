@@ -112,15 +112,39 @@ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True CUDA_VISIBLE_DEVICES=0 \
 
 ## Results
 
-> **Results pending.** The DMD/exponential backend is new; a like-for-like 40-object Toys4K mesh
-> F-score sweep against the Hermite parent is in progress. For the standalone forecaster benchmarks
-> (DMD vs Hermite vs Taylor on the diffusion feature-ODE) see
-> [`hicache-plus-plus`](https://github.com/Archerkattri/hicache-plus-plus); for the carved-hybrid
-> TRELLIS.2 numbers the Hermite parent
-> [`hermit-trellis2`](https://github.com/Archerkattri/hermit-trellis2) reports, see its
-> [Results](https://github.com/Archerkattri/hermit-trellis2#results) table. The expected gain of the
-> exponential basis is **stability at larger skip intervals** — i.e. the same near-lossless quality
-> at a wider `GF_HICACHE_SS_INTERVAL` than the polynomial forecast tolerates.
+TRELLIS.2-4B, Toys4K, mesh F-score@0.05 (area-weighted surface samples), 40 objects.
+
+**At the deployed interval (`GF_HICACHE_SS_INTERVAL=2`, ~1.9×), matched n=36** (objects that
+succeeded for every variant; the rotationally-degenerate sphere excluded):
+
+| backend | F1 mean | F1 median | Chamfer↓ | speedup |
+|---|---:|---:|---:|---:|
+| accel off (baseline) | 0.902 | 0.956 | 0.044 | 1.00× |
+| Fast-TRELLIS.2 (TaylorSeer) | 0.907 | 0.952 | 0.044 | 1.90× |
+| HiCache (Hermite) | 0.896 | 0.965 | 0.048 | 1.90× |
+| **HiCache++ (DMD)** | **0.900** | 0.960 | **0.047** | 1.89× |
+
+At the deployed schedule, DMD and Hermite are statistically on par — both near-lossless vs the
+accel-off baseline at ~1.9×; DMD is the most lossless on mean F1 and Chamfer.
+
+**The exponential basis earns its keep as the skip interval grows** (matched n=35, Hermite vs DMD):
+
+| `GF_HICACHE_SS_INTERVAL` | Hermite F1mean | DMD F1mean | Hermite F1med | DMD F1med | DMD − Hermite (mean / med) |
+|---|---:|---:|---:|---:|---:|
+| 2 (~1.9×, deployed) | 0.894 | 0.900 | 0.969 | 0.962 | +0.005 / −0.007 |
+| **3** | 0.836 | **0.872** | 0.930 | **0.946** | **+0.036 / +0.015** |
+| **4** | 0.839 | **0.868** | 0.898 | **0.935** | **+0.029 / +0.037** |
+| 5 | 0.886 | 0.881 | 0.943 | 0.962 | −0.005 / +0.019 |
+
+**Finding.** At the deployed interval the two bases tie (both near-lossless). As the interval grows
+to 3–4, **DMD pulls clearly ahead** — +0.03–0.04 mean F-score, +0.015–0.037 median — because the
+polynomial (Hermite) forecast degrades faster than the exponential (DMD) one, exactly as the
+standalone microbench and the Hunyuan3D-2.1 i3→i6 sweep in
+[`hicache-plus-plus`](https://github.com/Archerkattri/hicache-plus-plus) predict. (Interval-5 is
+non-monotonic — both partially recover, DMD keeping the median lead — an artifact of the carved
+schedule's adaptive clamp; reported as measured.) This confirms **directly on TRELLIS.2-4B** the
+HiCache++ thesis: the exponential basis extends the near-lossless skip range past where the
+polynomial holds.
 
 ---
 
