@@ -6,6 +6,12 @@
 
 **Training-free acceleration for [TRELLIS.2-4B](https://github.com/microsoft/TRELLIS) image-to-3D — the exponential (DMD) forecast variant of [`hermit-trellis2`](https://github.com/Archerkattri/hermit-trellis2), one line of code.**
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](./LICENSE)
+[![base: TRELLIS.2](https://img.shields.io/badge/base-microsoft%2FTRELLIS.2-555.svg?style=flat-square)](https://github.com/microsoft/TRELLIS.2)
+[![arXiv: TRELLIS.2](https://img.shields.io/badge/arXiv-2512.14692%20TRELLIS.2-b31b1b.svg?style=flat-square)](https://arxiv.org/abs/2512.14692)
+[![arXiv: HiCache](https://img.shields.io/badge/arXiv-2508.16984%20HiCache-b31b1b.svg?style=flat-square)](https://arxiv.org/abs/2508.16984)
+[![arXiv: Adaptive Guidance](https://img.shields.io/badge/arXiv-2312.12487%20Adaptive%20Guidance-b31b1b.svg?style=flat-square)](https://arxiv.org/abs/2312.12487)
+
 `TRELLIS.2-4B` · `1024_cascade` (mesh + texture) · training-free · single RTX 5090 · MIT
 
 </div>
