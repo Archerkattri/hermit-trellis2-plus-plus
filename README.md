@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/banner.png" alt="hermit-trellis2-plus-plus" width="680">
+
 # 🧭 hermit-trellis2++
 
 **Training-free acceleration for [TRELLIS.2-4B](https://github.com/microsoft/TRELLIS) image-to-3D — the exponential (DMD) forecast variant of [`hermit-trellis2`](https://github.com/Archerkattri/hermit-trellis2), one line of code.**
