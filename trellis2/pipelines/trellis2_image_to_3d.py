@@ -136,7 +136,17 @@ class Trellis2ImageTo3DPipeline(Pipeline):
                 self.rembg_model.to(device)
 
     def enable_faster(self, mode: str = "hermite") -> "Trellis2ImageTo3DPipeline":
-        """Enable the Hermite carved-hybrid acceleration in place — a HiCache (Hermite)
+        """Enable the carved-hybrid acceleration in place.
+
+        ``mode`` selects the sparse-structure forecast basis (``hermite`` or
+        ``dmd``); the structured-latent stages always use the independent
+        token-carved SLaT sampler. ``base`` / ``none`` / ``off`` is the
+        compatibility kill-switch.
+
+        The returned pipeline exposes :meth:`acceleration_status`, which
+        reports the actual stage/backend selection.
+
+        The Hermite variant is a HiCache (Hermite)
         sparse-structure forecast over the token-carved SLaT sampler (delta-cache temporal
         skip + spatial token carving). One shipped configuration; ``"base"`` / ``None`` is
         the kill-switch (stock TRELLIS.2 samplers).
@@ -158,7 +168,10 @@ class Trellis2ImageTo3DPipeline(Pipeline):
             print("[hermit-trellis2] acceleration = base", flush=True)
             return self
 
-        self.faster_mode = "hermite"
+        mode = "hermite" if mode is None else str(mode).lower().strip()
+        if mode not in ("hermite", "dmd"):
+            raise ValueError("acceleration mode must be 'hermite', 'dmd', or 'base'")
+        self.faster_mode = mode
         names = ("FlowEulerGuidanceIntervalSampler_hicache",
                  "FlowEulerGuidanceIntervalSampler_carved",
                  "FlowEulerGuidanceIntervalSampler_carved")
@@ -175,13 +188,47 @@ class Trellis2ImageTo3DPipeline(Pipeline):
         ss = self.sparse_structure_sampler
         ss.hicache_interval = ss_interval
         ss.hicache_first_enhance = first_enhance
+        ss.hicache_backend = mode
+        ss.hicache_stage = "sparse_structure"
         for s in (self.shape_slat_sampler, self.tex_slat_sampler):
             s.carving_ratio = carve
 
         self._apply_hicache_toggles()
-        print(f"[hermit-trellis2] acceleration = hermite "
+        print(f"[hermit-trellis2] acceleration = {mode} "
               f"(carve={carve}, ss_interval={ss_interval}, first_enhance={first_enhance})", flush=True)
         return self
+
+    def acceleration_status(self) -> dict:
+        """Describe the configured acceleration without claiming performance.
+
+        The sparse-structure backend is read from the live sampler so a
+        backwards-compatible post-``enable_faster`` assignment such as
+        ``sampler.hicache_backend = 'dmd'`` is represented accurately.
+        """
+        mode = getattr(self, "faster_mode", "base")
+        ss = getattr(self, "sparse_structure_sampler", None)
+        if mode == "base":
+            return {
+                "enabled": False,
+                "mode": "base",
+                "backend": "none",
+                "stages": {
+                    "sparse_structure": "base",
+                    "shape_slat": "base",
+                    "texture_slat": "base",
+                },
+            }
+        backend = getattr(ss, "hicache_backend", mode)
+        return {
+            "enabled": True,
+            "mode": mode,
+            "backend": backend,
+            "stages": {
+                "sparse_structure": f"hicache:{backend}",
+                "shape_slat": "carved_slat",
+                "texture_slat": "carved_slat",
+            },
+        }
 
     # Toggle attribute names recognised on each sampler stage. Stage-scoped via
     # an optional "ss_"/"slat_" prefix in the cfg (e.g. "ss_hicache_interval"),

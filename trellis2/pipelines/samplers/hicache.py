@@ -60,6 +60,22 @@ from typing import Any, Dict, Optional
 import torch
 
 
+# Public compatibility surface for TRELLIS.2 integrations.  Keep the two
+# forecast bases behind one state/dispatch API so callers do not need to know
+# which implementation owns the cache.  The carved SLaT sampler is separate
+# and intentionally does not use this switch.
+HICACHE_BACKENDS = ("hermite", "dmd")
+
+
+def normalize_backend(backend: str) -> str:
+    """Return a supported forecast backend or raise a useful error."""
+    value = "hermite" if backend is None else str(backend).lower().strip()
+    if value not in HICACHE_BACKENDS:
+        choices = ", ".join(repr(item) for item in HICACHE_BACKENDS)
+        raise ValueError(f"HiCache backend must be one of {choices}, got {backend!r}")
+    return value
+
+
 # ---------------------------------------------------------------------------
 # Hermite basis
 # ---------------------------------------------------------------------------
@@ -121,6 +137,7 @@ def hicache_init(
     adaptive_tol: float = 0.05,
     backend: str = "hermite",
     history: int = 6,
+    stage: str = "unknown",
 ) -> Dict[str, Any]:
     """Create a fresh HiCache state dict for one sampling run.
 
@@ -147,8 +164,7 @@ def hicache_init(
         raise ValueError("max_order must be >= 1")
     if not (0.0 < sigma < 1.0):
         raise ValueError(f"sigma must be in (0, 1), got {sigma}")
-    if backend not in ("hermite", "dmd"):
-        raise ValueError(f"backend must be 'hermite' or 'dmd', got {backend!r}")
+    backend = normalize_backend(backend)
     imin = int(interval_min) if interval_min is not None else int(interval)
     imax = int(interval_max) if interval_max is not None else int(interval)
     return {
@@ -163,7 +179,8 @@ def hicache_init(
         "interval_max": max(imax, max(imin, 1)),
         "adaptive_tol": float(adaptive_tol),
         "last_residual": None,   # set by hicache_record_compute
-        "backend": str(backend),  # "hermite" (polynomial) | "dmd" (exponential / HiCache++)
+        "backend": backend,       # "hermite" | "dmd"
+        "stage": str(stage),      # telemetry only; the carved SLaT path is separate
         "history": int(history),  # DMD snapshot-window length
         "step": 0,
         "counter": 0,            # forecasts since last compute
@@ -498,6 +515,18 @@ def dmd_forecast_state(state: Dict[str, Any]) -> torch.Tensor:
                 vels = [v for _, v in reversed(tail)]            # oldest..newest
                 k = (state["step"] - steps[-1]) / spacing        # fractional horizon
                 return dmd_forecast(vels, k)
+    return hicache_forecast(state)
+
+
+def hicache_forecast_state(state: Dict[str, Any]) -> torch.Tensor:
+    """Forecast from the backend selected in ``state``.
+
+    This is the compatibility switch used by the sampler.  Keeping dispatch
+    here makes Hermite and DMD share lifecycle, reset, and telemetry semantics.
+    """
+    backend = normalize_backend(state.get("backend", "hermite"))
+    if backend == "dmd":
+        return dmd_forecast_state(state)
     return hicache_forecast(state)
 
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""hermit-trellis2: TRELLIS.2-4B + the training-free Hermite carved-hybrid (Hermite SS forecast + token-carved SLaT).
+"""hermit-trellis2++: TRELLIS.2-4B + selectable HiCache carved-hybrid.
 
 Minimal image->3D example showing how to enable the acceleration. The pipeline is
 the full TRELLIS.2 (mesh + texture + 1024_cascade); only the per-step diffusion
@@ -7,7 +7,8 @@ compute is reduced.
 
 Acceleration is one call::
 
-    pipeline.enable_faster()         # the Hermite carved-hybrid (default), lossless vs base
+    pipeline.enable_faster()         # Hermite SS forecast (default)
+    pipeline.enable_faster("dmd")    # DMD/Prony SS forecast
     pipeline.enable_faster("base")   # standard TRELLIS.2 samplers (kill-switch)
 
 Example invocation with the recommended sparse-conv / attention backends::
@@ -20,9 +21,22 @@ Example invocation with the recommended sparse-conv / attention backends::
 import argparse, os, sys, types
 
 
+# Reproducibility manifest for the future GPU acceptance gate.  This records
+# identifiers and configuration; it is not a measured quality or speed claim.
+ACCELERATION_MANIFEST = {
+    "model_id": "microsoft/TRELLIS.2-4B",
+    "pipeline_type": "1024_cascade",
+    "default_mode": "hermite",
+    "supported_modes": ["hermite", "dmd", "base"],
+    "ss_stage": "sparse_structure",
+    "slat_stages": ["shape_slat", "texture_slat"],
+    "gpu_acceptance_command": "python example_faster.py --image input_rgba.png --mode dmd",
+}
+
+
 def _stub_render_deps():
     # decode_latent lazily imports these render-only dependencies; this example
-    # only needs the mesh geometry, so provide empty module placeholders for them.
+    # only needs the mesh geometry, so provide empty module bindings for them.
     for m in ("nvdiffrast", "nvdiffrast.torch", "nvdiffrec"):
         sys.modules.setdefault(m, types.ModuleType(m))
     sys.modules["nvdiffrast"].torch = sys.modules["nvdiffrast.torch"]
@@ -33,12 +47,19 @@ def main():
     ap.add_argument("--ckpt", default="ckpts/TRELLIS.2-4B")
     ap.add_argument("--image", required=True, help="RGBA PNG (alpha = object mask)")
     ap.add_argument("--mode", default="hermite",
-                    choices=["hermite", "base"])
+                    choices=["hermite", "dmd", "base"])
+    ap.add_argument("--print-manifest", action="store_true",
+                    help="print the reproducibility manifest and exit")
     ap.add_argument("--pipeline-type", default="1024_cascade",
                     choices=["512", "1024", "1024_cascade", "1536_cascade"])
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--out", default="hermit_trellis2_out.glb")
     args = ap.parse_args()
+
+    if args.print_manifest:
+        import json
+        print(json.dumps(ACCELERATION_MANIFEST, indent=2, sort_keys=True))
+        return
 
     _stub_render_deps()
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -52,6 +73,7 @@ def main():
 
     # Enable training-free acceleration.
     pipe.enable_faster(args.mode)
+    print(f"acceleration: {pipe.acceleration_status()}")
 
     image = Image.open(args.image).convert("RGBA")
 

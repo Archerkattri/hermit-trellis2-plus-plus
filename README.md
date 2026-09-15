@@ -11,7 +11,7 @@
 </p>
 
 
-**Training-free acceleration for [TRELLIS.2-4B](https://github.com/microsoft/TRELLIS) image-to-3D — the exponential (DMD) forecast variant of [`hermit-trellis2`](https://github.com/Archerkattri/hermit-trellis2), one line of code.**
+**Training-free acceleration for [TRELLIS.2-4B](https://github.com/microsoft/TRELLIS) image-to-3D — a selectable Hermite/DMD forecast variant of [`hermit-trellis2`](https://github.com/Archerkattri/hermit-trellis2), one line of code.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](./LICENSE)
 [![base: TRELLIS.2](https://img.shields.io/badge/base-microsoft%2FTRELLIS.2-555.svg?style=flat-square)](https://github.com/microsoft/TRELLIS.2)
@@ -39,11 +39,11 @@ base generator, and the `+` / `++` suffix is a **method choice**, not a rival pr
 | TRELLIS.2-4B (v2) | `hermit-trellis2` | `hermit-trellis2-plus-plus` |
 
 - **`+` (HiCache / scaled-Hermite):** the *published* polynomial velocity-forecast basis — conservative, reproduces the HiCache paper. Use it to deploy the established method.
-- **`++` (HiCache++ / DMD exponential):** our Dynamic-Mode-Decomposition basis — *the same near-lossless quality at wider skip intervals*, where the polynomial diverges. Use it when you push the cache interval for more speed.
+- **`++` (HiCache++ / DMD exponential):** our Dynamic-Mode-Decomposition basis. Use it when you want the DMD compatibility path; quality and speed remain workload- and configuration-dependent.
 - **standalone / model-agnostic:** [`hicache-plus-plus`](https://github.com/Archerkattri/hicache-plus-plus) — the forecaster itself, to add DMD caching to *your own* diffusion/flow model.
 - **`fast-trellis2`** = the TaylorSeer baseline fork (the upstream "Fast" accel) — the v2 reference point, not a HiCache variant.
 
-> **This repo:** `hermit-trellis2-plus-plus` — **TRELLIS.2-4B × HiCache++ (DMD)** — carved-hybrid; near-lossless at ~1.9×, DMD most lossless on mean F1.
+> **This repo:** `hermit-trellis2-plus-plus` — **TRELLIS.2-4B × selectable HiCache (Hermite/DMD)** — carved-hybrid. The benchmark card below is historical evidence, not a guarantee for new hardware, checkpoints, or schedules.
 
 `hermit-trellis2++` is `TRELLIS.2-4B` image-to-3D with the same **training-free carved-hybrid**
 as [`hermit-trellis2`](https://github.com/Archerkattri/hermit-trellis2) — but with the
@@ -53,8 +53,8 @@ and **carves** the structured-latent tokens, so the sampler spends far fewer net
 asset, with the weights, decoders, and the full `1024_cascade` mesh + texture left untouched.
 
 ```python
-pipe.enable_faster()                                      # carved-hybrid, Hermite SS forecast (the hermit-trellis2 default)
-pipe.enable_faster(); pipe.sparse_structure_sampler.hicache_backend = "dmd"  # ← the exponential DMD forecast (HiCache++)
+pipe.enable_faster()                                      # carved-hybrid, Hermite SS forecast (default)
+pipe.enable_faster("dmd")                                # carved-hybrid, DMD/Prony SS forecast
 pipe.enable_faster("base")                                # stock TRELLIS.2 sampler (kill-switch)
 ```
 
@@ -62,10 +62,8 @@ pipe.enable_faster("base")                                # stock TRELLIS.2 samp
 the only change is the **forecast basis on the sparse-structure stage**:
 
 - **HiCache++ (exponential DMD/Prony)** on the **sparse-structure** stage — forecasts the velocity
-  with **Dynamic Mode Decomposition** instead of the dual-scaled Hermite polynomial. The exact
-  solution of the diffusion feature-ODE is a sum of (damped/oscillatory) **exponentials**, not
-  polynomials, so DMD is the natural basis: it stays lossless at **larger skip intervals** than the
-  Hermite/Taylor polynomial bases, which diverge once the forecast horizon grows. The early steps,
+  with **Dynamic Mode Decomposition** instead of the dual-scaled Hermite polynomial. DMD is an
+  exponential forecast basis; its behavior at larger skip intervals is workload-dependent. The early steps,
   where topology is decided, are still always computed.
 - **Token-carved SLaT** on the **structured-latent** stages — unchanged from `hermit-trellis2`: a
   learned-cadence temporal skip plus spatial **token carving** that recomputes only the
@@ -95,16 +93,16 @@ from trellis2.pipelines import Trellis2ImageTo3DPipeline
 from PIL import Image
 
 pipe = Trellis2ImageTo3DPipeline.from_pretrained("ckpts/TRELLIS.2-4B").to("cuda")
-pipe.enable_faster()                                       # carved-hybrid
-pipe.sparse_structure_sampler.hicache_backend = "dmd"      # ← exponential DMD forecast (HiCache++)
+pipe.enable_faster("dmd")                                 # carved-hybrid, exponential DMD forecast
 
 out  = pipe.run(Image.open("input_rgba.png"), pipeline_type="1024_cascade")
 mesh = out[0]
 ```
 
-Leaving `hicache_backend = "hermite"` (the default) gives the original `hermit-trellis2` behaviour;
-setting it to `"dmd"` selects the exponential forecast. The DMD snapshot-window length is the
-sampler's `history` attribute (default `6`).
+`enable_faster()` defaults to the Hermite forecast for compatibility with `hermit-trellis2`;
+`enable_faster("dmd")` selects the exponential forecast. The DMD snapshot-window length is the
+sampler's `history` attribute (default `6`). `pipe.acceleration_status()` reports the selected
+backend and the independent carved SLaT stages.
 
 `example_faster.py` is the runnable end-to-end script; `example.py` is the stock TRELLIS.2 demo.
 
@@ -124,7 +122,12 @@ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True CUDA_VISIBLE_DEVICES=0 \
 
 ---
 
-## Results
+## Historical results (as measured)
+
+The following card is retained as prior-run evidence from the stated benchmark setup. It is not a
+current acceptance result and does not establish a universal speedup, losslessness, or quality
+ordering. Re-run the manifest command in `example_faster.py` on the target GPU before making a new
+claim.
 
 TRELLIS.2-4B, Toys4K, mesh F-score@0.05 (area-weighted surface samples), 40 objects.
 
@@ -138,8 +141,8 @@ succeeded for every variant; the rotationally-degenerate sphere excluded):
 | HiCache (Hermite) | 0.896 | 0.965 | 0.048 | 1.90× |
 | **HiCache++ (DMD)** | **0.900** | 0.960 | **0.047** | 1.89× |
 
-At the deployed schedule, DMD and Hermite are statistically on par — both near-lossless vs the
-accel-off baseline at ~1.9×; DMD is the most lossless on mean F1 and Chamfer.
+In that historical run, DMD and Hermite were close to the accel-off baseline at the stated schedule;
+the values should be interpreted only within that benchmark's matched sample.
 
 **The exponential basis earns its keep as the skip interval grows** (matched n=35, Hermite vs DMD):
 
@@ -150,15 +153,13 @@ accel-off baseline at ~1.9×; DMD is the most lossless on mean F1 and Chamfer.
 | **4** | 0.839 | **0.868** | 0.898 | **0.935** | **+0.029 / +0.037** |
 | 5 | 0.886 | 0.881 | 0.943 | 0.962 | −0.005 / +0.019 |
 
-**Finding.** At the deployed interval the two bases tie (both near-lossless). As the interval grows
-to 3–4, **DMD pulls clearly ahead** — +0.03–0.04 mean F-score, +0.015–0.037 median — because the
-polynomial (Hermite) forecast degrades faster than the exponential (DMD) one, exactly as the
-standalone microbench and the Hunyuan3D-2.1 i3→i6 sweep in
+**Finding from that run.** At the deployed interval the two bases were close; at intervals 3–4,
+DMD scored higher in that matched sample. This does not predict behavior on other checkpoints or
+schedules. The standalone microbench and the Hunyuan3D-2.1 i3→i6 sweep in
 [`hicache-plus-plus`](https://github.com/Archerkattri/hicache-plus-plus) predict. (Interval-5 is
 non-monotonic — both partially recover, DMD keeping the median lead — an artifact of the carved
-schedule's adaptive clamp; reported as measured.) This confirms **directly on TRELLIS.2-4B** the
-HiCache++ thesis: the exponential basis extends the near-lossless skip range past where the
-polynomial holds.
+schedule's adaptive clamp; reported as measured.) This is a historical TRELLIS.2-4B observation,
+not a general claim that the exponential basis extends a near-lossless skip range.
 
 ---
 
@@ -196,14 +197,14 @@ window (the last `history` compute steps). At a **skipped** step it forecasts th
 F̂_{t+k} ≈ Φ (Λᵏ · b)
 ```
 
-**Why exponential over polynomial.** A diffusion feature/velocity trajectory is the solution of a
-near-linear feature-ODE, whose **exact** solution class is a sum of (damped / oscillatory)
+**Why exponential over polynomial.** A diffusion feature/velocity trajectory can be modeled by a
+near-linear feature-ODE, whose solution class is a sum of (damped / oscillatory)
 **exponentials** `Σ bⱼ λⱼᵏ`, not polynomials. DMD — the modern generalisation of Prony's method
 (1795) — fits exactly that class: it recovers the modes `(Φ, Λ)` from the snapshots and is **exact on
 an exponential series**, which the polynomial Hermite/Taylor bases are not. The polynomial forecasts
 grow without bound as the skip horizon `k` increases (Taylor diverges fastest; the dual-scaled
 Hermite contracts it but is still polynomial), so the exponential basis is what holds quality at the
-**larger compute intervals** this variant targets. For the dense SS latent `pred_v` is forecast
+larger compute intervals this variant can target, subject to validation. For the dense SS latent `pred_v` is forecast
 directly; for the SLaT `SparseTensor`s only `.feats` is forecast and coords carry through via
 `.replace(feats)`. With too short a window DMD falls back to reusing the last computed velocity.
 *(arXiv:2508.16984 for the HiCache/Hermite parent method; the DMD/Prony basis is the `backend="dmd"`
@@ -227,15 +228,15 @@ reads, so the two stages share one signal. *(Fast-TRELLIS token selection; carvi
 <summary><b>③ Per-stage split</b> (exponential forecast on SS, token carving on SLaT)</summary>
 
 The two accelerations are matched to what each stage costs. The **sparse-structure** stage is a
-small dense volume that fixes the asset's topology — the DMD forecast thins it while always
-computing the first six steps (`GF_HICACHE_FIRST_ENHANCE`), so the occupancy can't be corrupted.
+small dense volume that fixes the asset's topology — the selected Hermite or DMD forecast thins it
+while always computing the first six steps (`GF_HICACHE_FIRST_ENHANCE`), so the occupancy can't be corrupted.
 The **shape and texture SLaT** stages are the sparse, expensive ones — token carving recomputes only
 their high-frequency voxels per step and the delta cache skips whole steps. The pipeline computes the
 SS occupancy's 3D-FFT frequency score once and hands it to the SLaT sampler (`set_coords_scores`),
 so the carving signal is the SS structure itself — wired in `trellis2/pipelines/trellis2_image_to_3d.py`.
 
 **The savings multiply:** the SLaT sampler skips whole steps (delta cache) *and* carves tokens on
-the steps it does run, while the DMD forecast independently thins the SS stage.
+the steps it does run, while the selected SS forecast independently reduces SS model calls.
 </details>
 
 ---
@@ -256,7 +257,7 @@ attribute (`"hermite"` default, `"dmd"` for the exponential variant):
 import os; os.environ["GF_CARVE_RATIO"] = "0.15"
 pipe.enable_faster()
 # …or set the instances directly, after enable_faster():
-pipe.sparse_structure_sampler.hicache_backend  = "dmd"   # exponential forecast (default "hermite")
+pipe.sparse_structure_sampler.hicache_backend  = "dmd"   # compatibility override (default "hermite")
 pipe.sparse_structure_sampler.hicache_interval = 2
 pipe.shape_slat_sampler.carving_ratio          = 0.10
 ```
@@ -337,3 +338,9 @@ Part of the **HiCache++ acceleration family**.
 
 - **Family hub:** [`hicache-plus-plus`](https://github.com/Archerkattri/hicache-plus-plus) — the basis library behind this adapter.
 - **Sibling:** [`hermit-trellis2`](https://github.com/Archerkattri/hermit-trellis2) — the same base model with the HiCache (scaled-Hermite) polynomial-forecast variant.
+
+## Current release status
+
+The current adapter includes shared HiCache++ cache identity, timing and
+fallback accounting. Five CPU sampler/contract tests pass. The real sparse
+model/CUDA workflow and output-quality comparison remain unmeasured.
