@@ -24,6 +24,11 @@
 </div>
 
 ## When to use this repo
+## Architecture at a glance
+
+![hermit-trellis2-plus-plus architecture](assets/readme_flow.svg)
+
+The forecast backend is selected at the TRELLIS.2 sampler boundary; Hermite and DMD remain explicit alternatives with separate measured evidence.
 
 These repos are **complementary accelerators, not competing solutions** — each speeds up a *different*
 base generator, and the `+` / `++` suffix is a **method choice**, not a rival product. Pick by
