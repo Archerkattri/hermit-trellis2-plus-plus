@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hermit-trellis2-plus-plus — Training-free acceleration for TRELLIS.2-4B image-to-3D</title>
+<meta name="description" content="hermit-trellis2++ is TRELLIS.2-4B image-to-3D with the same training-free carved-hybrid as hermit-trellis2, but with the sparse-structure velocity forecast on an exponential Dynamic-Mode-Decomposition (DMD/Prony) basis instead of the Hermite polynomial.">
+<style>
+  :root{
+    --bg:#ffffff; --ink:#17202a; --muted:#5a6572; --line:#e3e8ee;
+    --accent:#0c52d6; --accent-ink:#0c52d6; --code-bg:#f4f6f8; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.6}
+  .wrap{max-width:860px;margin:0 auto;padding:0 22px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  /* top bar */
+  .top{border-bottom:1px solid var(--line)}
+  .top .wrap{display:flex;align-items:baseline;gap:14px;padding-top:14px;padding-bottom:14px;flex-wrap:wrap}
+  .top .repo{font-weight:700;font-size:17px;color:var(--ink)}
+  .top .repo a{color:var(--ink)}
+  .top .ver{font-family:var(--mono);font-size:12px;color:var(--muted);border:1px solid var(--line);padding:1px 8px;border-radius:20px}
+  .top nav{margin-left:auto;display:flex;gap:16px;font-size:14px}
+  /* hero */
+  .hero{padding:34px 0 8px}
+  .hero img.banner{width:100%;height:auto;border:1px solid var(--line);display:block}
+  .hero h1{font-size:30px;line-height:1.25;margin:22px 0 6px;letter-spacing:-0.01em}
+  .hero p.lede{color:var(--muted);margin:0 0 14px;max-width:62ch}
+  pre{background:var(--code-bg);border:1px solid var(--line);padding:12px 14px;overflow-x:auto;
+    font-family:var(--mono);font-size:13px;line-height:1.55;margin:0 0 8px}
+  pre .c{color:#6a737d}
+  /* sections */
+  section{padding:26px 0 6px;border-top:1px solid var(--line);margin-top:26px}
+  section:first-of-type{border-top:0}
+  .sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:12px}
+  .sec-num{font-family:var(--mono);font-size:13px;color:var(--accent-ink);font-weight:700}
+  .sec-head h2{font-size:20px;margin:0}
+  table.ev{width:100%;border-collapse:collapse;font-size:14px}
+  table.ev th,table.ev td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.ev th{color:var(--muted);font-weight:600;width:34%}
+  table.ev td b{font-variant-numeric:tabular-nums}
+  .ok{color:#0a7b3c;font-weight:700}
+  .gallery{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .gallery figure{margin:0;border:1px solid var(--line)}
+  .gallery img,.gallery video{width:100%;height:auto;display:block}
+  .gallery figcaption{font-size:13px;color:var(--muted);padding:8px 10px;border-top:1px solid var(--line)}
+  .limits{background:#fbfcfd;border:1px solid var(--line);padding:14px 16px;font-size:14px}
+  .limits ul{margin:8px 0 0;padding-left:20px}
+  .limits li{margin:4px 0}
+  footer{border-top:1px solid var(--line);margin-top:30px;padding:16px 0 30px;color:var(--muted);font-size:13px}
+  footer .wrap{display:flex;gap:16px;flex-wrap:wrap}
+  @media (max-width:640px){.gallery{grid-template-columns:1fr}.hero h1{font-size:24px}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <span class="repo"><a href="https://github.com/Archerkattri/hermit-trellis2-plus-plus">hermit-trellis2-plus-plus</a></span>
+  <span class="ver">0.1.1</span>
+  <nav><a href="https://github.com/Archerkattri/hermit-trellis2-plus-plus">Code</a><a href="https://github.com/Archerkattri/hermit-trellis2-plus-plus/releases/tag/v0.1.1">Release</a></nav>
+</div></header>
+<main class="wrap">
+  <div class="hero">
+    <img class="banner" src="assets/banner.png" alt="hermit-trellis2-plus-plus banner">
+    <h1>Selectable Hermite or DMD forecast for TRELLIS.2 image-to-3D</h1>
+    <p class="lede">hermit-trellis2++ is TRELLIS.2-4B image-to-3D with the same training-free carved-hybrid as hermit-trellis2 — but with the sparse-structure velocity forecast on an exponential Dynamic-Mode-Decomposition (DMD/Prony) basis instead of the Hermite polynomial. It forecasts the model&#39;s final CFG-combined velocity and carves the structured-latent tokens, with the weights, decoders, and the full 1024_cascade mesh + texture left untouched.</p>
+    <pre>git clone https://github.com/Archerkattri/hermit-trellis2-plus-plus
+cd hermit-trellis2-plus-plus
+<span class="c"># TRELLIS.2 runtime deps (torch, flash-attn, spconv/flex_gemm, o-voxel, cumesh,</span>
+<span class="c"># nvdiffrast) per microsoft/TRELLIS.2. Place / symlink weights at ckpts/TRELLIS.2-4B.</span>
+
+from trellis2.pipelines import Trellis2ImageTo3DPipeline
+from PIL import Image
+
+pipe = Trellis2ImageTo3DPipeline.from_pretrained("ckpts/TRELLIS.2-4B").to("cuda")
+pipe.enable_faster("dmd")                                 <span class="c"># carved-hybrid, exponential DMD forecast</span>
+
+out  = pipe.run(Image.open("input_rgba.png"), pipeline_type="1024_cascade")
+mesh = out[0]</pre>
+  </div>
+  <section><div class="sec-head"><span class="sec-num">01</span><h2>Evidence</h2></div>
+    <table class="ev"><tr><th>Deployed schedule F1 mean (DMD)</th><td><b>0.900</b> — Toys4K mesh F-score@0.05, matched n=36, interval 2 (~1.9×)</td></tr><tr><th>Deployed schedule F1 median (DMD)</th><td><b>0.960</b> — Toys4K mesh F-score@0.05, matched n=36, interval 2</td></tr><tr><th>Deployed schedule speedup (DMD)</th><td><b>1.89×</b> — matched n=36 at GF_HICACHE_SS_INTERVAL=2</td></tr><tr><th>Interval-3 F1 mean (DMD vs Hermite)</th><td><b>0.872 vs 0.836</b> (+0.036) — matched n=35</td></tr><tr><th>Interval-4 F1 mean (DMD vs Hermite)</th><td><b>0.868 vs 0.839</b> (+0.029, median +0.037) — matched n=35</td></tr><tr><th>CPU sampler/contract tests</th><td><b>5 passed</b> — cache lifecycle, backend selection, no model quality</td></tr></table>
+  </section>
+  <section><div class="sec-head"><span class="sec-num">02</span><h2>Media</h2></div>
+    <div class="gallery"><figure><img src="assets/teaser.webp" alt="TRELLIS.2 asset grid"><figcaption>TRELLIS.2 base-model asset grid (upstream teaser)</figcaption></figure><figure><img src="assets/readme_flow.svg" alt="Sampler integration diagram"><figcaption>Sampler integration: forecast backend inside the TRELLIS.2 flow loop</figcaption></figure></div>
+  </section>
+  <section><div class="sec-head"><span class="sec-num">03</span><h2>Install &amp; verify</h2></div>
+    <pre>python -m pytest tests/ -q  <span class="c"># expect 5 passed (CPU contract tests)</span>
+python tests/test_hicache_contract.py  <span class="c"># standalone runner, prints [PASS] x5</span></pre>
+  </section>
+  <section><div class="sec-head"><span class="sec-num">04</span><h2>Limits</h2></div>
+    <div class="limits"><p style="margin:0">What this release does <b>not</b> claim (from the release notes):</p><ul><li>GPU speedup validation and weight-gated demo cells.</li></ul></div>
+  </section>
+</main>
+<footer><div class="wrap"><span>MIT · © 2026 Krishi Attri</span><span></span><span style="margin-left:auto"><a href="https://github.com/Archerkattri/hermit-trellis2-plus-plus">hermit-trellis2-plus-plus</a></span></div></footer>
+</body>
+</html>
