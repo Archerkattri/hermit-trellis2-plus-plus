@@ -193,6 +193,9 @@ def test_pipeline_preset_reports_dmd_and_keeps_carved_slat_separate():
     freq_mod.ss_high_freq_weight = lambda *args, **kwargs: None
     sys.modules["trellis2.pipelines.samplers.hicache_freq"] = freq_mod
     sys.modules["trellis2.pipelines.rembg"] = types.ModuleType("trellis2.pipelines.rembg")
+    pil_mod = types.ModuleType("PIL")
+    pil_mod.Image = types.SimpleNamespace(Image=object)
+    sys.modules["PIL"] = pil_mod
 
     base_mod = types.ModuleType("trellis2.pipelines.base")
     class Pipeline:
@@ -237,7 +240,15 @@ def test_pipeline_preset_reports_dmd_and_keeps_carved_slat_separate():
 
 
 if __name__ == "__main__":
+    import tempfile
+
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):
-            fn()
+            # pytest supplies tmp_path; direct runs get a TemporaryDirectory.
+            wants_tmp = "tmp_path" in fn.__code__.co_varnames[: fn.__code__.co_argcount]
+            if wants_tmp:
+                with tempfile.TemporaryDirectory() as tmp:
+                    fn(Path(tmp))
+            else:
+                fn()
             print(f"[PASS] {name}")
