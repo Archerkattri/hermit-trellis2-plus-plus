@@ -35,6 +35,13 @@ class AdvancedStabilityTracker:
         spatial_weight=0.5,
         **kwargs,
     ):
+        """Select stable tokens to reuse and return the remaining update indices.
+
+        The streak cap takes precedence over ``num_to_skip``: if every
+        preliminary candidate reached the reuse limit, this returns no cached
+        tokens and all tokens for a full update rather than exceeding the cap.
+        The two returned index sets are disjoint and cover the token range.
+        """
         pred_v = pred_v.float()
 
         if self.prev_pred_v is None or self.prev_pred_v.shape != pred_v.shape:
