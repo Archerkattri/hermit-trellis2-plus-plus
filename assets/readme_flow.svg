@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 440" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="440" viewBox="0 0 1200 440" role="img" aria-labelledby="title desc">
   <title id="title">hermit-trellis2++ sampler integration</title>
   <desc id="desc">Token carving and velocity forecasting use separate controls inside TRELLIS.2.</desc>
   <rect width="1200" height="440" rx="22" fill="#020617"/>
